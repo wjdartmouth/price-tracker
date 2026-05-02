@@ -213,8 +213,7 @@ func parsePrice(s string) (int, bool) {
 
 ## ライセンス / License
 
-MIT License © 2025
+MIT License © 2026
 
 ---
 
-[Portfolio](https://yourname.dev) · [GitHub](https://github.com/yourname) · [Zenn](https://zenn.dev/yourname)

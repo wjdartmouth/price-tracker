@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>価格追跡 — Price Tracker Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:    #0f0f0f;
+  --bg2:   #161616;
+  --bg3:   #1e1e1e;
+  --bg4:   #252525;
+  --red:   #ff2d2d;
+  --red2:  #cc1f1f;
+  --red-d: rgba(255,45,45,.1);
+  --grn:   #00e676;
+  --grn-d: rgba(0,230,118,.1);
+  --yel:   #ffea00;
+  --yel-d: rgba(255,234,0,.1);
+  --blu:   #40c4ff;
+  --blu-d: rgba(64,196,255,.1);
+  --org:   #ff9100;
+  --org-d: rgba(255,145,0,.1);
+  --pnk:   #ff4081;
+  --text:  #e8e8e8;
+  --dim:   #888;
+  --faint: #444;
+  --b:     rgba(255,255,255,.06);
+  --bh:    rgba(255,255,255,.12);
+  --mono:  'JetBrains Mono', monospace;
+  --jp:    'Noto Sans JP', sans-serif;
+  --r:     3px;
+}
+
+html { scroll-behavior: smooth; }
+body { font-family: var(--jp); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; line-height: 1.5; }
+
+/* ── SCANLINE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.04) 2px, rgba(0,0,0,.04) 4px);
+  pointer-events: none; z-index: 9999;
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--red);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+}
+
+.logo-area {
+  display: flex; align-items: center; gap: 12px;
+}
+
+.logo-mark {
+  width: 34px; height: 34px;
+  background: var(--red);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  color: #fff; letter-spacing: -.02em;
+  clip-path: polygon(0 0, 100% 0, 100% 75%, 85% 100%, 0 100%);
+}
+
+.logo-text {
+  font-family: var(--mono); font-size: 14px; font-weight: 700;
+  letter-spacing: .08em; color: var(--text);
+}
+
+.logo-jp {
+  font-family: var(--jp); font-size: 11px; color: var(--dim);
+  letter-spacing: .05em; margin-top: 1px;
+}
+
+.header-center {
+  font-family: var(--mono); font-size: 11px; color: var(--dim);
+  display: flex; align-items: center; gap: 20px;
+}
+
+.ticker-item {
+  display: flex; align-items: center; gap: 6px;
+}
+
+.ticker-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  animation: blink 1.5s infinite;
+}
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.header-right {
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--mono); font-size: 11px;
+}
+
+.clock-display {
+  font-size: 16px; font-weight: 600; color: var(--grn);
+  letter-spacing: .05em;
+}
+
+.unread-badge {
+  background: var(--red); color: #fff;
+  font-size: 10px; font-weight: 700;
+  padding: 2px 6px; border-radius: 10px;
+  font-family: var(--mono);
+  cursor: pointer;
+  animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+  0%,100%{box-shadow:0 0 0 0 rgba(255,45,45,.5)}
+  50%{box-shadow:0 0 0 6px rgba(255,45,45,0)}
+}
+
+/* ── NAV ── */
+.nav-bar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--b);
+  padding: 0 24px;
+  display: flex; align-items: center; gap: 2px;
+}
+
+.nav-tab {
+  padding: 10px 16px;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: var(--dim); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all .12s; letter-spacing: .06em; text-transform: uppercase;
+}
+
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--red); border-bottom-color: var(--red); }
+
+/* ── MAIN ── */
+.main { padding: 20px 24px; }
+
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── TICKER STRIP ── */
+.ticker-strip {
+  background: var(--bg2);
+  border: 1px solid var(--b);
+  border-radius: var(--r);
+  padding: 10px 16px;
+  display: flex; gap: 24px; overflow-x: auto;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.ticker-prod {
+  display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: opacity .12s;
+}
+.ticker-prod:hover { opacity: .7; }
+
+.tp-name {
+  font-size: 11px; color: var(--dim); white-space: nowrap;
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+}
+
+.tp-price {
+  font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text);
+}
+
+.tp-change {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  padding: 1px 5px; border-radius: 2px;
+}
+
+.tp-change.down { background: var(--red-d); color: var(--red); }
+.tp-change.up   { background: var(--grn-d); color: var(--grn); }
+.tp-change.flat { background: var(--bg4); color: var(--dim); }
+
+.tp-sep { color: var(--faint); font-family: var(--mono); }
+
+/* ── STAT CARDS ── */
+.stat-grid {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--b);
+  border-radius: var(--r); padding: 14px 16px;
+  position: relative; overflow: hidden; cursor: default;
+  transition: border-color .15s;
+}
+
+.stat-card:hover { border-color: var(--bh); }
+
+.stat-card::after {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+}
+
+.stat-card.red::after  { background: var(--red); }
+.stat-card.grn::after  { background: var(--grn); }
+.stat-card.yel::after  { background: var(--yel); }
+.stat-card.blu::after  { background: var(--blu); }
+
+.sc-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--faint); margin-bottom: 8px;
+}
+
+.sc-val {
+  font-family: var(--mono); font-size: 28px; font-weight: 700;
+  line-height: 1; margin-bottom: 5px;
+}
+
+.sc-val.red { color: var(--red); }
+.sc-val.grn { color: var(--grn); }
+.sc-val.yel { color: var(--yel); }
+
+.sc-sub { font-size: 10px; color: var(--dim); }
+
+/* ── TWO-COL ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+/* ── SECTION HEADER ── */
+.sec-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.sec-title {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+}
+
+.sec-title::before {
+  content: ''; display: block;
+  width: 3px; height: 14px;
+  background: var(--red); border-radius: 1px;
+}
+
+/* ── PRODUCT CARDS ── */
+.product-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr));
+  gap: 14px; margin-bottom: 20px;
+}
+
+.prod-card {
+  background: var(--bg2); border: 1px solid var(--b);
+  border-radius: var(--r); overflow: hidden;
+  cursor: pointer; transition: all .15s;
+  position: relative;
+}
+
+.prod-card:hover {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px var(--red-d);
+}
+
+.prod-card.selected {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px var(--red-d);
+}
+
+.pc-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--b);
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 10px;
+}
+
+.pc-name {
+  font-weight: 600; font-size: 13px; line-height: 1.4;
+  flex: 1;
+}
+
+.pc-cat {
+  font-family: var(--mono); font-size: 9px; color: var(--dim);
+  letter-spacing: .08em; margin-top: 3px;
+  text-transform: uppercase;
+}
+
+.pc-alert-pct {
+  font-family: var(--mono); font-size: 9px;
+  padding: 2px 6px; border-radius: 2px;
+  background: var(--yel-d); color: var(--yel);
+  white-space: nowrap; flex-shrink: 0;
+}
+
+.pc-platforms {
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 7px;
+}
+
+.plat-row {
+  display: flex; align-items: center; gap: 8px;
+}
+
+.plat-badge {
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  padding: 2px 6px; border-radius: 2px; min-width: 20px;
+  text-align: center; flex-shrink: 0; letter-spacing: .04em;
+}
+
+.pb-rakuten  { background: rgba(191,0,0,.2); color: #ff6666; }
+.pb-yahoo    { background: rgba(255,0,51,.15); color: #ff5577; }
+.pb-amazon   { background: rgba(255,153,0,.15); color: var(--org); }
+.pb-mercari  { background: rgba(255,45,85,.15); color: var(--pnk); }
+
+.plat-price {
+  font-family: var(--mono); font-size: 14px; font-weight: 700;
+  color: var(--text); flex: 1;
+}
+
+.plat-diff {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+}
+
+.plat-diff.down { color: var(--grn); }
+.plat-diff.up   { color: var(--red); }
+.plat-diff.flat { color: var(--faint); }
+
+.plat-trend {
+  font-family: var(--mono); font-size: 13px;
+}
+
+.pc-footer {
+  padding: 8px 16px;
+  border-top: 1px solid var(--b);
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.pc-target {
+  font-family: var(--mono); font-size: 9px; color: var(--dim);
+  display: flex; align-items: center; gap: 4px;
+}
+
+.pc-updated {
+  font-family: var(--mono); font-size: 9px; color: var(--faint);
+}
+
+/* ── PRICE CHART ── */
+.chart-panel {
+  background: var(--bg2); border: 1px solid var(--b);
+  border-radius: var(--r); padding: 16px;
+  margin-bottom: 20px;
+}
+
+.chart-controls {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 14px; flex-wrap: wrap;
+}
+
+.ctrl-btn {
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  padding: 4px 10px; border-radius: 2px;
+  border: 1px solid var(--b);
+  color: var(--dim); cursor: pointer;
+  background: transparent; transition: all .1s;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.ctrl-btn:hover { border-color: var(--bh); color: var(--text); }
+.ctrl-btn.active { background: var(--red-d); border-color: var(--red); color: var(--red); }
+
+.chart-area {
+  position: relative; height: 180px;
+  border-left: 1px solid var(--b);
+  border-bottom: 1px solid var(--b);
+}
+
+.chart-svg { width: 100%; height: 100%; overflow: visible; }
+
+.y-labels {
+  position: absolute; left: -54px; top: 0; bottom: 0;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 4px 0;
+}
+
+.y-label {
+  font-family: var(--mono); font-size: 9px; color: var(--faint);
+  text-align: right; width: 50px;
+}
+
+.chart-legend {
+  display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap;
+}
+
+.legend-i {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 10px; color: var(--dim);
+  cursor: pointer; transition: opacity .1s;
+}
+.legend-i:hover { opacity: .7; }
+
+.legend-line {
+  width: 20px; height: 2px; border-radius: 1px;
+}
+
+/* ── COMPARISON TABLE ── */
+.compare-table-wrap {
+  background: var(--bg2); border: 1px solid var(--b);
+  border-radius: var(--r); overflow: hidden; margin-bottom: 20px;
+}
+
+table { width: 100%; border-collapse: collapse; }
+
+thead th {
+  background: var(--bg3);
+  padding: 9px 13px;
+  text-align: left;
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: .15em; text-transform: uppercase;
+  color: var(--faint); border-bottom: 1px solid var(--b);
+}
+
+tbody tr { border-bottom: 1px solid var(--b); transition: background .1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(255,255,255,.02); }
+tbody tr.best-row { background: rgba(0,230,118,.04); }
+
+tbody td { padding: 9px 13px; font-size: 12px; color: var(--text); vertical-align: middle; }
+td.mono { font-family: var(--mono); }
+td.dim  { color: var(--dim); font-size: 11px; }
+
+/* ── ALERTS ── */
+.alert-feed {
+  background: var(--bg2); border: 1px solid var(--b);
+  border-radius: var(--r); overflow: hidden;
+}
+
+.alert-item {
+  padding: 12px 16px; border-bottom: 1px solid var(--b);
+  display: flex; align-items: flex-start; gap: 12px;
+  transition: background .1s; cursor: pointer;
+}
+.alert-item:last-child { border-bottom: none; }
+.alert-item:hover { background: rgba(255,255,255,.02); }
+.alert-item.unread { border-left: 3px solid var(--red); }
+
+.alert-icon { font-size: 16px; flex-shrink: 0; line-height: 1; margin-top: 1px; }
+.alert-body { flex: 1; }
+.alert-product { font-weight: 600; font-size: 12px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
+.alert-msg { font-size: 11px; color: var(--dim); line-height: 1.5; }
+.alert-meta { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
+.alert-time { font-family: var(--mono); font-size: 9px; color: var(--faint); }
+.alert-url { font-family: var(--mono); font-size: 9px; color: var(--blu); text-decoration: none; }
+.alert-url:hover { text-decoration: underline; }
+
+/* ── PRICE HISTORY TABLE ── */
+.hist-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin-bottom: 16px;
+}
+
+.hist-stat {
+  background: var(--bg3); border: 1px solid var(--b);
+  border-radius: var(--r); padding: 12px 14px;
+}
+
+.hs-label { font-family: var(--mono); font-size: 9px; letter-spacing: .15em; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+.hs-val { font-family: var(--mono); font-size: 20px; font-weight: 600; color: var(--text); }
+
+/* ── MINI SPARKLINE ── */
+.sparkline { display: inline-block; vertical-align: middle; margin-left: 4px; }
+
+/* ── FORM ── */
+.form-panel {
+  background: var(--bg2); border: 1px solid var(--b);
+  border-radius: var(--r); padding: 20px;
+  margin-bottom: 20px;
+}
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.form-grid.g3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.ff label {
+  display: block; font-family: var(--mono); font-size: 9px;
+  letter-spacing: .15em; text-transform: uppercase;
+  color: var(--faint); margin-bottom: 5px;
+}
+
+.ff input, .ff select, .ff textarea {
+  width: 100%; background: var(--bg3);
+  border: 1px solid var(--b); border-radius: var(--r);
+  color: var(--text); font-family: var(--jp); font-size: 12px;
+  padding: 8px 10px; transition: border-color .12s;
+  appearance: none; -webkit-appearance: none;
+}
+.ff input:focus, .ff select:focus { outline: none; border-color: var(--red); }
+.ff select option { background: var(--bg2); }
+
+.submit-btn {
+  padding: 9px 20px;
+  background: var(--red); border: none; border-radius: var(--r);
+  color: #fff; font-family: var(--jp); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .12s; letter-spacing: .04em;
+}
+.submit-btn:hover { background: var(--red2); transform: translateY(-1px); }
+
+/* ── TOAST ── */
+.toast-c {
+  position: fixed; bottom: 20px; right: 20px;
+  z-index: 1000; display: flex; flex-direction: column; gap: 6px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--bg3); border: 1px solid var(--bh);
+  border-radius: var(--r); padding: 10px 14px;
+  font-size: 12px; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+  animation: ti .2s ease; min-width: 220px;
+  pointer-events: all;
+}
+
+.toast.success { border-left: 3px solid var(--grn); }
+.toast.error   { border-left: 3px solid var(--red); }
+.toast.info    { border-left: 3px solid var(--yel); }
+
+@keyframes ti { from{opacity:0;transform:translateX(14px)} to{opacity:1;transform:none} }
+@keyframes to { from{opacity:1} to{opacity:0} }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo-area">
+    <div class="logo-mark">価格</div>
+    <div>
+      <div class="logo-text">PRICE TRACKER</div>
+      <div class="logo-jp">日本ECサイト価格監視</div>
+    </div>
+  </div>
+
+  <div class="header-center">
+    <div class="ticker-item">
+      <div class="ticker-dot" style="background:var(--red)"></div>
+      <span>楽天市場</span>
+    </div>
+    <div class="ticker-item">
+      <div class="ticker-dot" style="background:var(--org)"></div>
+      <span>Yahoo!ショッピング</span>
+    </div>
+    <div class="ticker-item">
+      <div class="ticker-dot" style="background:var(--yel)"></div>
+      <span>Amazon.co.jp</span>
+    </div>
+    <div class="ticker-item">
+      <div class="ticker-dot" style="background:var(--pnk)"></div>
+      <span>メルカリ</span>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <span class="clock-display" id="clk">--:--:--</span>
+    <span class="unread-badge" id="unread-badge" onclick="showTab('alerts')">3件</span>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav class="nav-bar">
+  <div class="nav-tab active" onclick="showTab('dashboard')">ダッシュボード</div>
+  <div class="nav-tab" onclick="showTab('products')">監視商品</div>
+  <div class="nav-tab" onclick="showTab('compare')">価格比較</div>
+  <div class="nav-tab" onclick="showTab('history')">価格推移</div>
+  <div class="nav-tab" onclick="showTab('alerts')">アラート <span id="nav-badge" style="font-family:var(--mono);font-size:9px;background:var(--red);color:#fff;padding:1px 5px;border-radius:8px;margin-left:3px">3</span></div>
+  <div class="nav-tab" onclick="showTab('add')">+ 商品追加</div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- ── DASHBOARD ── -->
+<div class="page active" id="tab-dashboard">
+
+  <div id="ticker-strip" class="ticker-strip"></div>
+
+  <div class="stat-grid">
+    <div class="stat-card red">
+      <div class="sc-label">監視商品数</div>
+      <div class="sc-val red" id="sc-products">5</div>
+      <div class="sc-sub">アクティブ</div>
+    </div>
+    <div class="stat-card grn">
+      <div class="sc-label">最安値更新</div>
+      <div class="sc-val grn" id="sc-newlows">2</div>
+      <div class="sc-sub">今月</div>
+    </div>
+    <div class="stat-card yel">
+      <div class="sc-label">未読アラート</div>
+      <div class="sc-val yel" id="sc-alerts">3</div>
+      <div class="sc-sub">件</div>
+    </div>
+    <div class="stat-card blu">
+      <div class="sc-label">価格データ</div>
+      <div class="sc-val" id="sc-datapoints">375</div>
+      <div class="sc-sub">記録済みポイント</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="sec-hd"><div class="sec-title">最近の値動き</div></div>
+      <div id="dash-product-list"></div>
+    </div>
+    <div>
+      <div class="sec-hd"><div class="sec-title">アラートフィード</div></div>
+      <div class="alert-feed" id="dash-alerts"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PRODUCTS ── -->
+<div class="page" id="tab-products">
+  <div class="sec-hd">
+    <div class="sec-title">監視商品一覧</div>
+    <button class="submit-btn" style="font-size:11px;padding:6px 14px" onclick="showTab('add')">+ 商品追加</button>
+  </div>
+  <div class="product-grid" id="product-grid"></div>
+</div>
+
+<!-- ── COMPARE ── -->
+<div class="page" id="tab-compare">
+  <div style="margin-bottom:16px">
+    <div class="sec-hd"><div class="sec-title">プラットフォーム間 価格比較</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap" id="compare-prod-btns"></div>
+  </div>
+  <div id="compare-content"></div>
+</div>
+
+<!-- ── HISTORY ── -->
+<div class="page" id="tab-history">
+  <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <div class="ff" style="flex:0 0 200px">
+      <label>商品選択</label>
+      <select id="hist-prod-sel" onchange="renderHistory()"></select>
+    </div>
+    <div style="display:flex;gap:4px;align-items:flex-end;padding-bottom:2px">
+      <button class="ctrl-btn active" onclick="setHistDays(7,this)">7D</button>
+      <button class="ctrl-btn" onclick="setHistDays(14,this)">14D</button>
+      <button class="ctrl-btn" onclick="setHistDays(30,this)">30D</button>
+    </div>
+  </div>
+  <div id="history-content"></div>
+</div>
+
+<!-- ── ALERTS ── -->
+<div class="page" id="tab-alerts">
+  <div class="sec-hd">
+    <div class="sec-title">価格アラート</div>
+    <button onclick="markAllRead()" style="font-family:var(--mono);font-size:10px;padding:4px 12px;border:1px solid var(--b);border-radius:var(--r);color:var(--dim);cursor:pointer;background:transparent;transition:all .1s" onmouseover="this.style.borderColor='var(--bh)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--b)';this.style.color='var(--dim)'">すべて既読</button>
+  </div>
+  <div class="alert-feed" id="full-alerts"></div>
+</div>
+
+<!-- ── ADD PRODUCT ── -->
+<div class="page" id="tab-add">
+  <div style="max-width:560px">
+    <div class="sec-hd"><div class="sec-title">商品を追加</div></div>
+    <div class="form-panel">
+      <div class="form-grid">
+        <div class="ff">
+          <label>商品名（必須）</label>
+          <input type="text" id="add-name" placeholder="例: Sony WH-1000XM5">
+        </div>
+        <div class="ff">
+          <label>カテゴリ</label>
+          <select id="add-cat">
+            <option>ヘッドホン・イヤホン</option>
+            <option>スマートフォン</option>
+            <option>ゲーム機・本体</option>
+            <option>ゲームソフト</option>
+            <option>家電・掃除機</option>
+            <option>家電・生活</option>
+            <option>PC・タブレット</option>
+            <option>おもちゃ・ホビー</option>
+            <option>ファッション</option>
+            <option>スポーツ・アウトドア</option>
+            <option>その他</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid g3">
+        <div class="ff">
+          <label>目標価格（円）</label>
+          <input type="number" id="add-target" placeholder="例: 35000">
+        </div>
+        <div class="ff">
+          <label>値下がりアラート（%）</label>
+          <input type="number" id="add-alert-pct" placeholder="例: 5">
+        </div>
+        <div class="ff">
+          <label>タグ（カンマ区切り）</label>
+          <input type="text" id="add-tags" placeholder="例: sony, ヘッドホン">
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);display:block;margin-bottom:8px">監視URL（1行に1URL）</label>
+        <div id="url-fields">
+          <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+            <select style="width:140px;background:var(--bg3);border:1px solid var(--b);border-radius:var(--r);color:var(--dim);font-family:var(--mono);font-size:10px;padding:7px 8px">
+              <option value="rakuten">楽天市場</option>
+              <option value="yahoo">Yahoo!ショッピング</option>
+              <option value="amazon_jp">Amazon.co.jp</option>
+              <option value="mercari">メルカリ</option>
+            </select>
+            <input type="url" style="flex:1;background:var(--bg3);border:1px solid var(--b);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;padding:7px 10px" placeholder="https://...">
+          </div>
+        </div>
+        <button onclick="addURLField()" style="font-family:var(--mono);font-size:9px;padding:4px 10px;border:1px dashed var(--b);border-radius:var(--r);color:var(--dim);cursor:pointer;background:transparent;letter-spacing:.06em">+ URLを追加</button>
+      </div>
+      <button class="submit-btn" onclick="submitProduct()">監視開始</button>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-c" id="tc"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// EMBEDDED DATA
+// ═══════════════════════════════════════════
+
+const PRODUCTS = [
+  {id:'prod-001', name:'Sony WH-1000XM5', nameJa:'ソニー WH-1000XM5 ワイヤレスノイキャン', category:'ヘッドホン・イヤホン', targetPrice:35000, alertPct:5, tags:['sony','ヘッドホン'],
+   platforms: [
+     {p:'rakuten', badge:'R', prices:[42800,42800,41500,40200,39800,38900,37500,37500,36800,36800,36800,36800,36800,36800,36800]},
+     {p:'yahoo',   badge:'Y', prices:[43200,42100,40800,40100,39500,38200,37800,37100,37100,37100,37100,37100,37100,37100,37100]},
+     {p:'amazon',  badge:'A', prices:[44000,43500,42000,41000,40500,39200,38500,38000,37500,37500,37500,37500,37500,37500,37500]},
+   ]},
+  {id:'prod-002', name:'Nintendo Switch 本体', nameJa:'Nintendo Switch（有機ELモデル）', category:'ゲーム機・本体', targetPrice:30000, alertPct:3,
+   platforms: [
+     {p:'rakuten', badge:'R', prices:[37980,37980,36500,35980,35980,34500,34500,33980,33500,33500,33500,33500,33500,33500,33500]},
+     {p:'yahoo',   badge:'Y', prices:[38500,37200,36800,35500,34800,34200,33700,33200,33200,33200,33200,33200,33200,33200,33200]},
+     {p:'amazon',  badge:'A', prices:[37980,37980,36980,35980,35980,34980,33980,33980,33980,33980,33980,33980,33980,33980,33980]},
+     {p:'mercari', badge:'M', prices:[28000,27500,30000,27000,29500,26000,29000,28500,26500,25000,25000,25000,25000,25000,25000]},
+   ]},
+  {id:'prod-003', name:'Apple iPhone 16 Pro', nameJa:'Apple iPhone 16 Pro 256GB', category:'スマートフォン', targetPrice:140000, alertPct:5,
+   platforms: [
+     {p:'rakuten', badge:'R', prices:[178000,175000,172000,169800,165000,162000,159800,158000,158000,158000,158000,158000,158000,158000,158000]},
+     {p:'amazon',  badge:'A', prices:[180000,179000,176000,173000,170000,167000,163000,160000,158000,158000,158000,158000,158000,158000,158000]},
+   ]},
+  {id:'prod-004', name:'Dyson V15 Detect', nameJa:'ダイソン コードレス掃除機 V15 Detect', category:'家電・掃除機', targetPrice:60000, alertPct:8,
+   platforms: [
+     {p:'rakuten', badge:'R', prices:[84800,82000,79800,77500,74900,72000,69800,68000,68000,68000,68000,68000,68000,68000,68000]},
+     {p:'yahoo',   badge:'Y', prices:[85500,83000,80500,78000,75500,73000,70500,68500,68500,68500,68500,68500,68500,68500,68500]},
+     {p:'amazon',  badge:'A', prices:[86800,85000,82000,80000,78000,75000,72000,70000,68500,68500,68500,68500,68500,68500,68500]},
+   ]},
+  {id:'prod-005', name:'LEGO テクニック ブガッティ', nameJa:'LEGO テクニック ブガッティ シロン 42083', category:'おもちゃ・ホビー', targetPrice:35000, alertPct:10,
+   platforms: [
+     {p:'rakuten', badge:'R', prices:[58000,55000,52000,50000,48000,46000,44000,42000,40000,38000,38000,38000,38000,38000,38000]},
+     {p:'amazon',  badge:'A', prices:[60000,58000,55000,53000,49000,46000,43000,41000,39800,37000,37000,37000,37000,37000,37000]},
+     {p:'mercari', badge:'M', prices:[35000,33000,36000,31000,30000,33000,29000,28000,26500,26000,26000,26000,26000,26000,26000]},
+   ]},
+];
+
+let ALERTS = [
+  {id:'a-001', productId:'prod-001', productName:'Sony WH-1000XM5', platform:'楽天市場', type:'new_low', icon:'📉', msg:'過去最安値更新！ ¥37,500 → ¥36,800', oldPrice:37500, newPrice:36800, dropPct:1.87, url:'https://item.rakuten.co.jp/edion/4548736132276/', read:false, time:new Date(Date.now()-2*3600*1000)},
+  {id:'a-002', productId:'prod-002', productName:'Nintendo Switch 本体', platform:'メルカリ', type:'drop_pct', icon:'📉', msg:'9.6%値下がり！ ¥27,000 → ¥24,400', oldPrice:27000, newPrice:24400, dropPct:9.6, url:'https://jp.mercari.com/', read:false, time:new Date(Date.now()-5*3600*1000)},
+  {id:'a-003', productId:'prod-004', productName:'Dyson V15 Detect', platform:'Yahoo!ショッピング', type:'target_hit', icon:'🎯', msg:'目標価格に到達！ ¥70,500 → ¥68,500', oldPrice:70500, newPrice:68500, dropPct:2.84, url:'https://shopping.yahoo.co.jp/', read:false, time:new Date(Date.now()-24*3600*1000)},
+  {id:'a-004', productId:'prod-005', productName:'LEGO テクニック ブガッティ', platform:'Amazon.co.jp', type:'drop_pct', icon:'📉', msg:'38.3%値下がり！ ¥60,000 → ¥37,000', oldPrice:60000, newPrice:37000, dropPct:38.3, url:'https://www.amazon.co.jp/', read:true, time:new Date(Date.now()-48*3600*1000)},
+];
+
+const PLAT_META = {
+  rakuten: {name:'楽天市場',  color:'#ff6666', badge:'R', cls:'pb-rakuten'},
+  yahoo:   {name:'Yahoo!',     color:'#ff5577', badge:'Y', cls:'pb-yahoo'},
+  amazon:  {name:'Amazon',    color:'#ff9100', badge:'A', cls:'pb-amazon'},
+  mercari: {name:'メルカリ', color:'#ff4081', badge:'M', cls:'pb-mercari'},
+};
+
+let histDays = 7;
+let selectedCompare = 'prod-001';
+let selectedHistory = 'prod-001';
+
+// ═══════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════
+
+function fp(n){if(!n)return'--';const s=String(n);let r='';for(let i=0;i<s.length;i++){if(i>0&&(s.length-i)%3===0)r+=',';r+=s[i]}return r}
+function timeAgo(d){const s=Math.floor((Date.now()-d)/1000);if(s<60)return s+'秒前';if(s<3600)return Math.floor(s/60)+'分前';if(s<86400)return Math.floor(s/3600)+'時間前';return Math.floor(s/86400)+'日前'}
+function toast(msg,type='info'){const t=document.createElement('div');t.className=`toast ${type}`;const ic={success:'✓',error:'✗',info:'⚡'};t.innerHTML=`<span>${ic[type]||'●'}</span><span>${msg}</span>`;document.getElementById('tc').appendChild(t);setTimeout(()=>{t.style.animation='to .25s ease forwards';setTimeout(()=>t.remove(),250)},3000)}
+
+function tick(){
+  const n=new Date();
+  document.getElementById('clk').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+}
+setInterval(tick,1000);tick();
+
+function getCurrentPrice(prod,platform){return prod.platforms.find(p=>p.p===platform)?.prices.slice(-1)[0]||0}
+function getChange(prod,platform){const prices=prod.platforms.find(p=>p.p===platform)?.prices||[];if(prices.length<2)return 0;return prices[prices.length-1]-prices[prices.length-2]}
+function getMinPrice(prod){let m=Infinity;prod.platforms.forEach(p=>{const c=p.prices.slice(-1)[0];if(c&&c<m)m=c});return m===Infinity?0:m}
+function getBestPlatform(prod){let best=null,bp=Infinity;prod.platforms.forEach(p=>{const c=p.prices.slice(-1)[0];if(c&&c<bp){bp=c;best=p.p}});return best}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+
+let curTab = 'dashboard';
+function showTab(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t=>{
+    if(t.textContent.trim().startsWith({dashboard:'ダッシュボード',products:'監視商品',compare:'価格比較',history:'価格推移',alerts:'アラート',add:'+ 商品追加'}[name]||'__'))t.classList.add('active');
+  });
+  curTab=name;
+  renderPage(name);
+}
+
+function renderPage(name){
+  if(name==='dashboard')renderDashboard();
+  else if(name==='products')renderProducts();
+  else if(name==='compare')renderCompare();
+  else if(name==='history')renderHistory();
+  else if(name==='alerts')renderAlerts();
+  else if(name==='add')renderAdd();
+}
+
+// ═══════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════
+
+function renderDashboard(){
+  // Ticker strip
+  document.getElementById('ticker-strip').innerHTML=PRODUCTS.map(p=>{
+    const price=getMinPrice(p);
+    const best=getBestPlatform(p);
+    const change=getChange(p,best||'rakuten');
+    const changeCls=change<0?'down':change>0?'up':'flat';
+    const changeStr=change<0?`▼${fp(-change)}`:change>0?`▲${fp(change)}`:'±0';
+    const meta=PLAT_META[best]||PLAT_META.rakuten;
+    return`<div class="ticker-prod" onclick="showTab('compare');selectedCompare='${p.id}';renderCompare()">
+      <span class="tp-name">${p.name}</span>
+      <span class="tp-price">¥${fp(price)}</span>
+      <span class="tp-change ${changeCls}">${changeStr}</span>
+      <span class="tp-sep" style="color:var(--faint);font-size:10px">${meta.name}</span>
+    </div>`;
+  }).join('<span style="color:var(--faint);font-family:var(--mono)">|</span>');
+
+  // Product list
+  document.getElementById('dash-product-list').innerHTML=`<div class="compare-table-wrap"><table>
+    <thead><tr><th>商品名</th><th>最安値</th><th>前回比</th><th>最安プラットフォーム</th><th>目標価格</th></tr></thead>
+    <tbody>${PRODUCTS.map(p=>{
+      const price=getMinPrice(p);
+      const best=getBestPlatform(p);
+      const change=best?getChange(p,best):0;
+      const chcls=change<0?'down':change>0?'up':'flat';
+      const chstr=change<0?`<span style="color:var(--grn);font-family:var(--mono);font-size:10px">▼${fp(-change)}</span>`:change>0?`<span style="color:var(--red);font-family:var(--mono);font-size:10px">▲${fp(change)}</span>`:'<span style="color:var(--faint);font-family:var(--mono);font-size:10px">±0</span>';
+      const meta=PLAT_META[best]||{name:'—',cls:'',badge:'?'};
+      const targetHit=p.targetPrice&&price<=p.targetPrice;
+      return`<tr>
+        <td><strong>${p.name}</strong><div style="font-size:10px;color:var(--faint)">${p.category}</div></td>
+        <td class="mono" style="color:${targetHit?'var(--grn)':'var(--text)'}">¥${fp(price)}</td>
+        <td>${chstr}</td>
+        <td><span class="plat-badge ${meta.cls}">${meta.badge}</span> <span style="font-size:11px;color:var(--dim)">${meta.name}</span></td>
+        <td class="mono" style="color:var(--dim);font-size:10px">${p.targetPrice?'¥'+fp(p.targetPrice):'—'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+
+  // Alert feed
+  const unread=ALERTS.filter(a=>!a.read).slice(0,4);
+  document.getElementById('dash-alerts').innerHTML=unread.length?unread.map(a=>renderAlertItem(a,true)).join(''):'<div style="padding:20px;text-align:center;color:var(--faint);font-size:11px">未読アラートはありません</div>';
+}
+
+// ═══════════════════════════════════════════
+// PRODUCTS
+// ═══════════════════════════════════════════
+
+function renderProducts(){
+  document.getElementById('product-grid').innerHTML=PRODUCTS.map(p=>{
+    const best=getBestPlatform(p);
+    return`<div class="prod-card" onclick="showTab('compare');selectedCompare='${p.id}';setTimeout(renderCompare,50)">
+      <div class="pc-header">
+        <div>
+          <div class="pc-name">${p.name}</div>
+          <div class="pc-cat">${p.category}</div>
+        </div>
+        ${p.alertPct?`<div class="pc-alert-pct">▼${p.alertPct}%でアラート</div>`:''}
+      </div>
+      <div class="pc-platforms">
+        ${p.platforms.map(pl=>{
+          const cur=pl.prices.slice(-1)[0];
+          const prev=pl.prices.slice(-2,-1)[0]||cur;
+          const diff=cur-prev;
+          const dcls=diff<0?'down':diff>0?'up':'flat';
+          const dstr=diff<0?`▼${fp(-diff)}`:diff>0?`▲${fp(diff)}`:'±0';
+          const trend=diff<0?'↓':diff>0?'↑':'→';
+          const trendColor=diff<0?'var(--grn)':diff>0?'var(--red)':'var(--faint)';
+          const isBest=pl.p===best;
+          const meta=PLAT_META[pl.p];
+          return`<div class="plat-row">
+            <span class="plat-badge ${meta.cls}">${meta.badge}</span>
+            <span class="plat-price" style="${isBest?'color:var(--grn)':''}">¥${fp(cur)}</span>
+            <span class="plat-diff ${dcls}">${dstr}</span>
+            <span class="plat-trend" style="color:${trendColor}">${trend}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="pc-footer">
+        <div class="pc-target">${p.targetPrice?`🎯 目標: ¥${fp(p.targetPrice)}`:'目標価格未設定'}</div>
+        <div class="pc-updated">更新: 30分前</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// COMPARE
+// ═══════════════════════════════════════════
+
+function renderCompare(){
+  // Product selector buttons
+  document.getElementById('compare-prod-btns').innerHTML=PRODUCTS.map(p=>
+    `<button class="ctrl-btn${p.id===selectedCompare?' active':''}" onclick="selectedCompare='${p.id}';renderCompare()">${p.name.substring(0,18)}</button>`
+  ).join('');
+
+  const prod=PRODUCTS.find(p=>p.id===selectedCompare);
+  if(!prod){document.getElementById('compare-content').innerHTML='';return}
+
+  const rows=prod.platforms.map(pl=>{
+    const cur=pl.prices.slice(-1)[0];
+    const high=Math.max(...pl.prices);
+    const low=Math.min(...pl.prices);
+    const avg=Math.round(pl.prices.reduce((a,b)=>a+b,0)/pl.prices.length);
+    const diff=cur-pl.prices[0];
+    const diffPct=(diff/pl.prices[0]*100).toFixed(1);
+    const meta=PLAT_META[pl.p];
+    return{pl, cur, high, low, avg, diff, diffPct, meta};
+  });
+
+  const bestRow=rows.reduce((a,b)=>a.cur<b.cur?a:b);
+
+  document.getElementById('compare-content').innerHTML=`
+    <div class="compare-table-wrap" style="margin-bottom:16px">
+      <table>
+        <thead><tr><th>プラットフォーム</th><th>現在価格</th><th>最高値</th><th>最安値</th><th>平均価格</th><th>30日変動</th><th>目標との差</th><th>リンク</th></tr></thead>
+        <tbody>
+          ${rows.map(r=>`<tr class="${r===bestRow?'best-row':''}">
+            <td><span class="plat-badge ${r.meta.cls}">${r.meta.badge}</span> <span style="font-size:11px">${r.meta.name}</span>${r===bestRow?' <span style="font-family:var(--mono);font-size:8px;background:var(--grn-d);color:var(--grn);padding:1px 5px;border-radius:2px">最安</span>':''}</td>
+            <td class="mono" style="font-size:15px;font-weight:700;color:${r===bestRow?'var(--grn)':'var(--text)'}">¥${fp(r.cur)}</td>
+            <td class="mono dim">¥${fp(r.high)}</td>
+            <td class="mono" style="color:var(--blu)">¥${fp(r.low)}</td>
+            <td class="mono dim">¥${fp(r.avg)}</td>
+            <td class="mono" style="color:${r.diff<0?'var(--grn)':'var(--red)'}">
+              ${r.diff<0?'▼':'▲'}¥${fp(Math.abs(r.diff))} (${Math.abs(r.diffPct)}%)
+            </td>
+            <td class="mono" style="color:${prod.targetPrice&&r.cur<=prod.targetPrice?'var(--grn)':'var(--yel)'}">
+              ${prod.targetPrice?(r.cur<=prod.targetPrice?'✓ 達成':'¥'+fp(r.cur-prod.targetPrice)):'—'}
+            </td>
+            <td><a href="#" class="alert-url" onclick="toast('${r.meta.name}の商品ページを開きます','info');return false">開く →</a></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${renderMiniChart(prod)}
+  `;
+}
+
+function renderMiniChart(prod){
+  const days=histDays;
+  const colors={'rakuten':'#ff6666','yahoo':'#ff5577','amazon':'#ff9100','mercari':'#ff4081'};
+  const W=700,H=160,pad=10;
+
+  // Collect all prices to get y scale
+  let allPrices=[];
+  prod.platforms.forEach(pl=>{
+    const slice=pl.prices.slice(-days);
+    allPrices=allPrices.concat(slice);
+  });
+
+  const minP=Math.min(...allPrices)*0.98;
+  const maxP=Math.max(...allPrices)*1.02;
+  const range=maxP-minP||1;
+
+  const toX=i=>(i/(days-1))*(W-pad*2)+pad;
+  const toY=v=>H-(((v-minP)/range)*(H-pad*2)+pad);
+
+  const gridLines=[0,.25,.5,.75,1].map(t=>{
+    const y=toY(minP+t*range);
+    const price=Math.round(minP+t*range);
+    return`<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="rgba(255,255,255,.05)" stroke-dasharray="3,3"/>
+    <text x="${pad-4}" y="${y+3}" text-anchor="end" fill="#444" font-size="9" font-family="JetBrains Mono">¥${fp(price)}</text>`;
+  }).join('');
+
+  const lines=prod.platforms.map(pl=>{
+    const slice=pl.prices.slice(-days);
+    if(slice.length<2)return'';
+    const pts=slice.map((v,i)=>`${toX(i*(days/(slice.length-1||1))/(days/(days-1||1)))},${toY(v)}`);
+    // fix x spacing
+    const pts2=slice.map((v,i)=>`${toX(i*(days-1)/(slice.length-1||1))},${toY(v)}`);
+    const color=colors[pl.p]||'#888';
+    const d='M'+pts2.join('L');
+    // fill area
+    const fill=d+`L${toX(days-1)},${H}L${toX(0)},${H}Z`;
+    return`<path d="${fill}" fill="${color}" fill-opacity=".06"/>
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${pts2.slice(-1)[0].split(',')[0]}" cy="${pts2.slice(-1)[0].split(',')[1]}" r="3" fill="${color}"/>`;
+  }).join('');
+
+  const legend=prod.platforms.map(pl=>{
+    const meta=PLAT_META[pl.p];
+    const c=colors[pl.p]||'#888';
+    return`<div class="legend-i"><div class="legend-line" style="background:${c}"></div><span>${meta.name}</span></div>`;
+  }).join('');
+
+  return`<div class="chart-panel">
+    <div class="sec-hd">
+      <div class="sec-title">価格推移グラフ (${days}日間)</div>
+      <div style="display:flex;gap:4px">
+        <button class="ctrl-btn${histDays===7?' active':''}" onclick="histDays=7;renderCompare()">7D</button>
+        <button class="ctrl-btn${histDays===14?' active':''}" onclick="histDays=14;renderCompare()">14D</button>
+        <button class="ctrl-btn${histDays===15?' active':''}" onclick="histDays=15;renderCompare()">ALL</button>
+      </div>
+    </div>
+    <div class="chart-area" style="padding-left:54px">
+      <svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        ${gridLines}${lines}
+      </svg>
+    </div>
+    <div class="chart-legend">${legend}</div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════
+
+function setHistDays(d,btn){
+  histDays=d;
+  document.querySelectorAll('#tab-history .ctrl-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHistory();
+}
+
+function renderHistory(){
+  const sel=document.getElementById('hist-prod-sel');
+  if(!sel.options.length){
+    sel.innerHTML=PRODUCTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  }
+  const prodId=sel.value||'prod-001';
+  selectedHistory=prodId;
+  const prod=PRODUCTS.find(p=>p.id===prodId);
+  if(!prod)return;
+
+  const content=document.getElementById('history-content');
+  content.innerHTML=prod.platforms.map(pl=>{
+    const slice=pl.prices.slice(-histDays);
+    const cur=slice.slice(-1)[0];
+    const high=Math.max(...slice);
+    const low=Math.min(...slice);
+    const avg=Math.round(slice.reduce((a,b)=>a+b,0)/slice.length);
+    const change=cur-slice[0];
+    const changePct=(change/slice[0]*100).toFixed(1);
+    const meta=PLAT_META[pl.p];
+
+    // Build sparkline
+    const W=300,H=40;
+    const minP=Math.min(...slice)*0.99;
+    const maxP=Math.max(...slice)*1.01;
+    const rng=maxP-minP||1;
+    const pts=slice.map((v,i)=>`${(i/(slice.length-1||1))*(W-6)+3},${H-(((v-minP)/rng)*(H-6)+3)}`).join('L');
+    const c=meta.cls==='pb-rakuten'?'#ff6666':meta.cls==='pb-yahoo'?'#ff5577':meta.cls==='pb-amazon'?'#ff9100':'#ff4081';
+
+    return`<div style="background:var(--bg2);border:1px solid var(--b);border-radius:var(--r);padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="plat-badge ${meta.cls}">${meta.badge}</span>
+          <span style="font-weight:600">${meta.name}</span>
+          <span style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--text)">¥${fp(cur)}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:${change<0?'var(--grn)':change>0?'var(--red)':'var(--faint)'}">
+            ${change<0?`▼${fp(-change)} (${Math.abs(changePct)}%)`:change>0?`▲${fp(change)} (${changePct}%)`:'±0'}
+          </span>
+        </div>
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="opacity:.8">
+          <path d="M${pts}" fill="none" stroke="${c}" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="hist-grid">
+        <div class="hist-stat"><div class="hs-label">期間最高値</div><div class="hs-val" style="color:var(--red)">¥${fp(high)}</div></div>
+        <div class="hist-stat"><div class="hs-label">期間最安値</div><div class="hs-val" style="color:var(--grn)">¥${fp(low)}</div></div>
+        <div class="hist-stat"><div class="hs-label">平均価格</div><div class="hs-val">¥${fp(avg)}</div></div>
+        <div class="hist-stat"><div class="hs-label">変動幅</div><div class="hs-val" style="font-size:16px">¥${fp(high-low)}</div></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="min-width:500px">
+          <thead><tr><th>日付</th><th>価格</th><th>前日比</th><th>状態</th></tr></thead>
+          <tbody>
+            ${[...slice].reverse().map((price,i)=>{
+              const prev=slice[slice.length-2-i];
+              const d=prev?price-prev:0;
+              const dStr=d<0?`<span style="color:var(--grn);font-family:var(--mono)">▼¥${fp(-d)}</span>`:d>0?`<span style="color:var(--red);font-family:var(--mono)">▲¥${fp(d)}</span>`:'<span style="color:var(--faint)">±0</span>';
+              const dateOffset=slice.length-1-i;
+              const d2=new Date();d2.setDate(d2.getDate()-dateOffset);
+              const dateStr=`${d2.getMonth()+1}月${d2.getDate()}日`;
+              const isLow=price===low;const isHigh=price===high;
+              return`<tr>
+                <td class="mono dim">${dateStr}</td>
+                <td class="mono" style="font-weight:${isLow||isHigh?'700':'400'};color:${isLow?'var(--grn)':isHigh?'var(--red)':'var(--text)'}">¥${fp(price)}${isLow?' 🏷️最安':''}${isHigh?' ⚠️最高':''}</td>
+                <td>${dStr}</td>
+                <td><span class="plat-badge ${meta.cls}" style="font-size:8px">在庫あり</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════
+
+function renderAlertItem(a, compact=false){
+  const unreadCls=a.read?'':'unread';
+  return`<div class="alert-item ${unreadCls}" onclick="markRead('${a.id}')">
+    <span class="alert-icon">${a.icon}</span>
+    <div class="alert-body">
+      <div class="alert-product">
+        <strong>${a.productName}</strong>
+        <span style="font-family:var(--mono);font-size:9px;background:var(--bg3);padding:1px 6px;border-radius:2px;color:var(--dim)">${a.platform}</span>
+        ${!a.read?'<span style="font-family:var(--mono);font-size:8px;background:var(--red-d);color:var(--red);padding:1px 5px;border-radius:8px">NEW</span>':''}
+      </div>
+      <div class="alert-msg">${a.msg}</div>
+      <div class="alert-meta">
+        <span class="alert-time">${timeAgo(a.time)}</span>
+        <a href="${a.url}" class="alert-url" target="_blank" onclick="event.stopPropagation()">商品ページを見る →</a>
+        ${a.newPrice?`<span style="font-family:var(--mono);font-size:10px;color:var(--grn)">¥${fp(a.newPrice)}</span>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAlerts(){
+  document.getElementById('full-alerts').innerHTML=ALERTS.length?ALERTS.map(a=>renderAlertItem(a)).join(''):'<div style="padding:24px;text-align:center;color:var(--faint);font-size:12px">アラートはありません</div>';
+  updateAlertCounts();
+}
+
+function markRead(id){
+  const a=ALERTS.find(x=>x.id===id);
+  if(a)a.read=true;
+  updateAlertCounts();
+  if(curTab==='alerts')renderAlerts();
+  if(curTab==='dashboard')renderDashboard();
+}
+
+function markAllRead(){
+  ALERTS.forEach(a=>a.read=true);
+  updateAlertCounts();
+  renderAlerts();
+  toast('すべてのアラートを既読にしました','success');
+}
+
+function updateAlertCounts(){
+  const unread=ALERTS.filter(a=>!a.read).length;
+  document.getElementById('unread-badge').textContent=unread+'件';
+  document.getElementById('nav-badge').textContent=unread;
+  document.getElementById('sc-alerts').textContent=unread;
+}
+
+// ═══════════════════════════════════════════
+// ADD PRODUCT
+// ═══════════════════════════════════════════
+
+function renderAdd(){
+  const today=new Date().toISOString().slice(0,10);
+}
+
+function addURLField(){
+  const container=document.getElementById('url-fields');
+  const div=document.createElement('div');
+  div.style.cssText='display:flex;gap:6px;margin-bottom:6px;align-items:center';
+  div.innerHTML=`<select style="width:140px;background:var(--bg3);border:1px solid var(--b);border-radius:var(--r);color:var(--dim);font-family:var(--mono);font-size:10px;padding:7px 8px">
+    <option value="rakuten">楽天市場</option>
+    <option value="yahoo">Yahoo!ショッピング</option>
+    <option value="amazon_jp">Amazon.co.jp</option>
+    <option value="mercari">メルカリ</option>
+  </select>
+  <input type="url" style="flex:1;background:var(--bg3);border:1px solid var(--b);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;padding:7px 10px" placeholder="https://...">
+  <button onclick="this.parentNode.remove()" style="font-family:var(--mono);font-size:11px;padding:4px 8px;border:1px solid var(--b);border-radius:var(--r);color:var(--red);cursor:pointer;background:transparent">✕</button>`;
+  container.appendChild(div);
+}
+
+function submitProduct(){
+  const name=document.getElementById('add-name').value.trim();
+  if(!name){toast('商品名を入力してください','error');return}
+  const cat=document.getElementById('add-cat').value;
+  const target=parseInt(document.getElementById('add-target').value)||0;
+  const alertPct=parseFloat(document.getElementById('add-alert-pct').value)||0;
+  const tags=document.getElementById('add-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+
+  const newProd={
+    id:`prod-${String(PRODUCTS.length+1).padStart(3,'0')}`,
+    name, category:cat, targetPrice:target, alertPct,
+    tags, platforms:[]
+  };
+
+  PRODUCTS.push(newProd);
+  toast(`「${name}」の監視を開始しました！`,'success');
+  document.getElementById('add-name').value='';
+  document.getElementById('add-target').value='';
+  document.getElementById('add-alert-pct').value='';
+  document.getElementById('add-tags').value='';
+
+  setTimeout(()=>showTab('products'),1200);
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+
+renderDashboard();
+</script>
+</body>
+</html>
